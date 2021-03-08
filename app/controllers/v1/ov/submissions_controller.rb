@@ -1,6 +1,7 @@
 class V1::Ov::SubmissionsController < ApplicationController
   $QUERY_VALUES = ["id", "br_court_name", "kind_name", "cin", "registration_date", "corporate_body_name", "br_section", "br_insertion", "text", "street", "postal_code", "city"]
   $ORDER_VALUES = ["asc", "desc"]
+  $SUBMISSION_VALUES = ["br_court_name", "kind_name", "cin", "registration_date", "corporate_body_name", "br_section", "br_insertion", "text", "street", "postal_code", "city"]
 
   #GET v1/ov/submissions
   def show
@@ -51,7 +52,47 @@ class V1::Ov::SubmissionsController < ApplicationController
 
   #POST v1/ov/submissions
   def create
-    render json: { test: "post" }
+    #get params
+    params.require(:submission)
+    submission = params[:submission].clone
+    submission.permit(:br_court_name, :kind_name, :cin, :registration_date, :corporate_body_name, :br_section, :br_insertion, :text, :street, :postal_code, :city)
+
+    missing_params = []
+    $SUBMISSION_VALUES.each do |param|
+      submission[param].nil? || submission[param].to_s.strip.empty? ? missing_params << param : nil
+    end
+    missing_params.empty? ? nil : (return render_submission_error(missing_params))
+
+    #validate submission values
+    (submission[:cin].is_a? Integer) ? nil : missing_params << "cin"
+
+    begin
+      Date.iso8601(submission[:registration_date])
+    rescue ArgumentError => e
+      missing_params << "registration_date"
+    end
+    if (Date.today().to_s.to_i - submission[:registration_date].to_s.to_i) == 0
+      nil
+    else
+      missing_params << "registration_date"
+    end
+
+    missing_params.empty? ? nil : (return render_submission_error(missing_params))
+
+    #prepare missing values
+    submission[:created_at] = submission[:updated_at] = Date.today().iso8601
+    submission[:address_line] = "co sem?"
+
+    #!WIP: prepare sql string
+    sql = "INSERT INTO ov.or_podanie_issues 
+    SELECT id, bulletin_issue_id, raw_issue_id, br_court_name, kind_name, cin, registration_date, corporate_body_name, br_section, br_insertion, text, street, postal_code, city, updated_at, created_at, address_line
+    FROM json_populate_record(NULL::ov.or_podanie_issues, '" + submission.to_json + "');"
+
+    #submit sql data
+    #TODO: response = format_response(ActiveRecord::Base.connection.execute(sql))
+
+    #render
+    render json: params[:submission], status: 200
   end
 
   #DELETE v1/ov/submissions
@@ -75,5 +116,16 @@ class V1::Ov::SubmissionsController < ApplicationController
   #TODO proper error rendering according to specification
   def render_error(message, status_code)
     render json: { error: { message: message } }, status: status_code
+  end
+
+  def render_submission_error(arr)
+    render_arr = []
+    arr.each do |param|
+      reasons = ["required"]
+      param == "cin" ? reasons << "not_number" : nil
+      param == "registration_date" ? reasons << "invalid_range" : nil
+      render_arr << { field: param, reasons: reasons }
+    end
+    render json: { errors: render_arr }, status: 422
   end
 end
