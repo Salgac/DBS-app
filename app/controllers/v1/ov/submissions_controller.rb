@@ -95,9 +95,21 @@ class V1::Ov::SubmissionsController < ApplicationController
     render json: params[:submission], status: 200
   end
 
-  #DELETE v1/ov/submissions
+  #DELETE v1/ov/submissions/{id}
   def destroy
-    render json: { test: "delete" }
+    #get params
+    params.require("id")
+    id = params[:id]
+
+    #prepare sql string
+    sql = "DELETE FROM ov.or_podanie_issues 
+    WHERE id = '" + id + "' 
+    RETURNING (select_list | *);"
+
+    #submit sql delete request
+
+    #render
+    render json: { sql: sql }
   end
 
   #############

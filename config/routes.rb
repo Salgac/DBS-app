@@ -7,7 +7,7 @@ Rails.application.routes.draw do
     namespace :ov do
       get "submissions", to: "submissions#show"
       post "submissions", to: "submissions#create"
-      delete "submissions", to: "submissions#destroy"
+      delete "submissions/:id", to: "submissions#destroy"
     end
   end
 end
