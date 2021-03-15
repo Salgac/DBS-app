@@ -81,18 +81,36 @@ class V1::Ov::SubmissionsController < ApplicationController
 
     #prepare missing values
     submission[:created_at] = submission[:updated_at] = Date.today().iso8601
-    submission[:address_line] = "co sem?"
+    submission[:address_line] = submission[:street] + ", " + submission[:postal_code] + " " + submission[:city]
 
-    #!WIP: prepare sql string
+    #insert into ov.bulletin_issues
+    time = "'" + Time.now().iso8601 + "'::timestamp"
+    sql = "INSERT INTO ov.bulletin_issues (year, number, published_at, created_at, updated_at) 
+    VALUES ( 2021 ,
+      (SELECT number FROM ov.bulletin_issues ORDER BY number desc LIMIT 1) + 1,
+    " + time + "," + time + "," + time + ") 
+    RETURNING (id);"
+    bulletin_id = ActiveRecord::Base.connection.execute(sql).getvalue(0, 0)
+
+    #insert into ov.raw_issues
+    sql = "INSERT INTO ov.raw_issues (bulletin_issue_id , file_name , content, created_at, updated_at)
+    VALUES (" + bulletin_id.to_s + ",'-','-', " + time + "," + time + ") 
+    RETURNING (id);"
+    raw_id = ActiveRecord::Base.connection.execute(sql).getvalue(0, 0)
+
+    #insert into ov.or_podanie_issues
     sql = "INSERT INTO ov.or_podanie_issues 
-    SELECT id, bulletin_issue_id, raw_issue_id, br_court_name, kind_name, cin, registration_date, corporate_body_name, br_section, br_insertion, text, street, postal_code, city, updated_at, created_at, address_line
-    FROM json_populate_record(NULL::ov.or_podanie_issues, '" + submission.to_json + "');"
-
-    #submit sql data
-    #TODO: response = format_response(ActiveRecord::Base.connection.execute(sql))
+    (bulletin_issue_id, raw_issue_id, br_mark, br_court_name, br_court_code, kind_code, kind_name, cin, registration_date, corporate_body_name, br_section, br_insertion, text, street, 
+      postal_code, city, updated_at, created_at, address_line)
+    VALUES (" + bulletin_id.to_s + "," + raw_id.to_s + ",'-','" + submission[:br_court_name].to_s + "','-','-','" + submission[:kind_name].to_s + "'," + submission[:cin].to_s + "
+    ,'" + submission[:registration_date].to_s + "','" + submission[:corporate_body_name].to_s + "','" + submission[:br_section].to_s + "','" + submission[:br_insertion].to_s + "'
+    ,'" + submission[:text].to_s + "','" + submission[:street].to_s + "','" + submission[:postal_code].to_s + "','" + submission[:city].to_s + "','" + submission[:updated_at].to_s + "'
+    ,'" + submission[:created_at].to_s + "','" + submission[:address_line].to_s + "') 
+    RETURNING *;"
+    response = ActiveRecord::Base.connection.execute(sql)
 
     #render
-    render json: params[:submission], status: 200
+    render json: { response: format_response(response)[0] }, status: 200
   end
 
   #DELETE v1/ov/submissions/{id}
