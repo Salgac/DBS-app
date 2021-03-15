@@ -18,27 +18,28 @@ class V1::Ov::SubmissionsController < ApplicationController
     order_by = params[:order_by] || "registration_date"
     order_type = params[:order_type] || "desc"
 
-    #validate param values
-    page_num.negative? ? (return render_error("wrong/no page_num value", 400)) : nil
-    per_page.zero? ? (return render_error("wrong/no per_page value", 400)) : nil
+    #validate param values - use default if not present or incorrect
+    page_num.negative? ? page_num = 0 : nil
+    per_page.zero? ? per_page = 10 : nil
 
-    order_by.in?($QUERY_VALUES) ? nil : (return render_error("wrong order_by value", 400))
-    order_type.in?($ORDER_VALUES) ? nil : (return render_error("wrong order_type value", 400))
+    order_by.in?($QUERY_VALUES) ? nil : order_by = "registration_date"
+    order_type.in?($ORDER_VALUES) ? nil : order_type = "desc"
 
     begin
       Date.iso8601(gte_date)
       Date.iso8601(lte_date)
     rescue ArgumentError => e
-      return render_error(e, 400)
+      gte_date = Date.new(1900, 1, 1).to_s
+      lte_date = Date.today().to_s
     end
 
     #prepare sql string
     date_sql = "WHERE registration_date >= '" + gte_date + "' AND registration_date <= '" + lte_date + "'"
     search_q.nil? ? search_sql = "" : search_sql = "AND POSITION('" + search_q + "' IN corporate_body_name)>0 OR POSITION('" + search_q + "' IN cin::text)>0 OR POSITION('" + search_q + "' IN city)>0"
+    order_sql = "ORDER BY " + order_by + " " + order_type
 
     sql = "SELECT * FROM ov.or_podanie_issues 
-    " + date_sql + search_sql + "
-    ORDER BY " + order_by + " " + order_type + " 
+    " + date_sql + search_sql + order_sql + " 
     LIMIT " + per_page.to_s + " 
     OFFSET " + (page_num * per_page).to_s + ";"
 
@@ -159,7 +160,6 @@ class V1::Ov::SubmissionsController < ApplicationController
     return tmp_array
   end
 
-  #TODO proper error rendering according to specification
   def render_error(message, status_code)
     render json: { error: { message: message } }, status: status_code
   end
