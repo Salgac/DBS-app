@@ -110,7 +110,7 @@ class V1::Ov::SubmissionsController < ApplicationController
     response = ActiveRecord::Base.connection.execute(sql)
 
     #render
-    render json: { response: format_response(response)[0] }, status: 200
+    render json: { response: format_response(response)[0] }, status: 201
   end
 
   #DELETE v1/ov/submissions/{id}
@@ -119,15 +119,31 @@ class V1::Ov::SubmissionsController < ApplicationController
     params.require("id")
     id = params[:id]
 
-    #prepare sql string
+    #delete from ov.or_podanie_issues
     sql = "DELETE FROM ov.or_podanie_issues 
     WHERE id = '" + id + "' 
-    RETURNING (select_list | *);"
+    RETURNING (raw_issue_id);"
+    raw_id = ActiveRecord::Base.connection.execute(sql)
 
-    #submit sql delete request
+    raw_id.num_tuples.zero? ? (return render_error("Záznam neexistuje", 404)) : nil
+    raw_id = raw_id.getvalue(0, 0)
 
-    #render
-    render json: { sql: sql }
+    #delete from ov.raw_issues
+    sql = "DELETE FROM ov.raw_issues 
+    WHERE id = '" + raw_id.to_s + "' 
+    RETURNING (bulletin_issue_id);"
+    bulletin_id = ActiveRecord::Base.connection.execute(sql)
+
+    bulletin_id.num_tuples.zero? ? (return render_error("Záznam neexistuje", 404)) : nil
+    bulletin_id = bulletin_id.getvalue(0, 0)
+
+    #delete from ov.bulletin_issues
+    sql = "DELETE FROM ov.bulletin_issues 
+    WHERE id = '" + bulletin_id.to_s + "';"
+    res = ActiveRecord::Base.connection.execute(sql)
+
+    #render status
+    render status: 204
   end
 
   #############
