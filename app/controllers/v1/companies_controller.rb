@@ -32,30 +32,36 @@ class V1::CompaniesController < ApplicationController
       lte_date = Date.today().to_s
     end
 
-    #prepare sql string
-    date_sql = "WHERE last_update >= '" + gte_date + "' AND last_update <= '" + lte_date + "'"
-    search_q.nil? ? search_sql = "" : search_sql = "AND POSITION('" + search_q + "' IN name)>0 OR POSITION('" + search_q + "' IN address_line)>0"
-    order_sql = "ORDER BY " + order_by + " " + order_type
+    #prepare sql string and variables
+    date_sql = "WHERE last_update >= ? AND last_update <= ?"
+    sql_var_arr = [gte_date, lte_date]
 
-    sql = "SELECT * FROM ov.companies 
-    " + date_sql + search_sql + order_sql + " 
-    LIMIT " + per_page.to_s + " 
-    OFFSET " + (page_num * per_page).to_s + ";"
+    search_q.nil? ? search_sql = " " : (search_sql = "AND POSITION(? IN name)>0 OR POSITION(? IN address_line)>0 "; sql_var_arr += [search_q, search_q])
+
+    order_type.eql? "desc" ? order_sql = "ORDER BY coalesce(?) DESC" : order_sql = "ORDER BY coalesce(?) ASC"
+
+    sql_var_arr += [order_by]
+    sql_var_arr += [per_page.to_s, (page_num * per_page).to_s]
+
+    sql = "SELECT cin, name, br_section, address_line, last_update,
+      (SELECT count(*) FROM ov.or_podanie_issues WHERE cin = companies.cin GROUP BY cin) AS or_podanie_issues_count,
+      (SELECT count(*) FROM ov.znizenie_imania_issues WHERE cin = companies.cin GROUP BY cin) AS znizenie_imania_issues_count,
+      (SELECT count(*) FROM ov.likvidator_issues WHERE cin = companies.cin GROUP BY cin) AS likvidator_issues_count,
+      (SELECT count(*) FROM ov.konkurz_vyrovnanie_issues WHERE cin = companies.cin GROUP BY cin) AS konkurz_vyrovnanie_issues_count,
+      (SELECT count(*) FROM ov.konkurz_restrukturalizacia_actors WHERE cin = companies.cin GROUP BY cin) AS konkurz_restrukturalizacia_actors_count
+      FROM ov.companies
+      " + date_sql + search_sql + order_sql + " 
+      LIMIT ? OFFSET ?;"
+
+    #sanitize query
+    main_query = ActiveRecord::Base.sanitize_sql_array([sql, *sql_var_arr])
+    count_query = ActiveRecord::Base.sanitize_sql_array(["SELECT count(*) FROM ov.companies " + date_sql + search_sql + ";", *sql_var_arr[0...-3]])
 
     #get sql data
-    response = format_response(ActiveRecord::Base.connection.execute(sql))
-    total_num = ActiveRecord::Base.connection.execute("SELECT count(*) FROM ov.companies " + date_sql + search_sql + ";").getvalue(0, 0)
+    response = ActiveRecord::Base.connection.execute(main_query)
+    total_num = ActiveRecord::Base.connection.execute(count_query).getvalue(0, 0)
 
     #render
     render json: { items: response, metadata: { page: page_num + 1, per_page: per_page, pages: total_num / per_page + 1, total: total_num } }, status: 200
-  end
-
-  def format_response(args_array)
-    tmp_array = []
-    args_array.each do |arg|
-      tmp = arg.slice(*$QUERY_VALUES)
-      tmp_array << tmp
-    end
-    return tmp_array
   end
 end
