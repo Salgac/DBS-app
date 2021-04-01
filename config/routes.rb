@@ -3,6 +3,7 @@ Rails.application.routes.draw do
 
   namespace :v1 do
     get "health"
+    get "companies", to: "companies#show"
 
     namespace :ov do
       get "submissions", to: "submissions#show"

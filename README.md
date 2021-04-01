@@ -10,4 +10,5 @@ Repozitar projektu na DBS.
 Deploynute pomocou Linode na: 139.162.130.177:3000
 
 Commit ID pre odovzdanie 1: dbeafbc
-Commid ID pre odovzdanie 2: 
+
+Commid ID pre odovzdanie 2: ff3d5d7
