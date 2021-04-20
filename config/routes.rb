@@ -11,4 +11,14 @@ Rails.application.routes.draw do
       delete "submissions/:id", to: "submissions#destroy"
     end
   end
+
+  defaults format: :json do
+    namespace :v2 do
+      get "companies", to: "companies#index"
+
+      namespace :ov do
+        resources :submissions
+      end
+    end
+  end
 end
