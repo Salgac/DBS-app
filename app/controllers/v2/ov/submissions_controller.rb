@@ -124,6 +124,27 @@ class V2::Ov::SubmissionsController < ApplicationController
 
   #DELETE v2/ov/submissions/:id
   def destroy
+    params.permit(:id)
+
+    #delete from ov.or_podanie_issues
+    issue = OrPodanieIssue.find_by_id(params[:id])
+    issue.nil? ? (return render_error("Záznam neexistuje", 404)) : nil
+    raw_id = issue.raw_issue_id
+    issue.destroy
+
+    #delete from ov.raw_issues
+    raw = RawIssue.find_by_id(raw_id)
+    raw.nil? ? (return render_error("Záznam neexistuje", 404)) : nil
+    bulletin_id = raw.bulletin_issue_id
+    raw.destroy
+
+    #delete from ov.bulletin_issues
+    bulletin = BulletinIssue.find_by_id(bulletin_id)
+    bulletin.nil? ? (return render_error("Záznam neexistuje", 404)) : nil
+    bulletin.destroy
+
+    #render status
+    render status: 204
   end
 
   #GET v2/ov/submissions/:id
