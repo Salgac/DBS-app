@@ -16,7 +16,7 @@ class V2::Ov::SubmissionsController < ApplicationController
     lte_date = params[:registration_date_lte]
 
     order_by = params[:order_by]
-    order_type = params[:order_type] || "desc"
+    order_type = params[:order_type]
 
     #validate param values - use default if not present or incorrect
     page_num.zero? ? page_num = 1 : nil
@@ -29,12 +29,12 @@ class V2::Ov::SubmissionsController < ApplicationController
       Date.iso8601(gte_date)
       Date.iso8601(lte_date)
     rescue ArgumentError => e
-      gte_date = Date.new(1900, 1, 1).to_s
-      lte_date = Date.today().to_s
+      gte_date.nil? ? gte_date = Date.new(1900, 1, 1).to_s : nil
+      lte_date.nil? ? lte_date = Date.today().to_s : nil
     end
 
     #get values and render
-    query = OrPodanieIssue.select($SUBMISSION_VALUES)
+    query = OrPodanieIssue.select($QUERY_VALUES)
       .where(registration_date: gte_date..lte_date)
       .order(order_by => order_type)
       .page(page_num).per(per_page)
@@ -54,10 +54,22 @@ class V2::Ov::SubmissionsController < ApplicationController
 
   #GET v2/ov/submissions/:id
   def show
-    render json: {}
+    params.permit(:id)
+
+    query = OrPodanieIssue.select($QUERY_VALUES).find_by_id(params[:id])
+
+    query.nil? ? render_error("Invalid range", 422) : (render json: { response: query }, status: 200)
   end
 
   #PUT v2/ov/submissions/:id
   def update
+  end
+
+  #############
+  ## HELPERS ##
+  #############
+
+  def render_error(message, status_code)
+    render json: { error: { message: message } }, status: status_code
   end
 end
