@@ -158,6 +158,12 @@ class V2::Ov::SubmissionsController < ApplicationController
 
   #PUT v2/ov/submissions/:id
   def update
+    params.permit($QUERY_VALUES)
+
+    item = OrPodanieIssue.find_by_id(params[:id])
+    item.update(params.permit($SUBMISSION_VALUES))
+
+    render json: { params: item.slice($QUERY_VALUES) }
   end
 
   #############
