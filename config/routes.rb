@@ -12,13 +12,13 @@ Rails.application.routes.draw do
     end
   end
 
-  defaults format: :json do
-    namespace :v2 do
-      get "companies", to: "companies#index"
+  #defaults format: :json do
+  namespace :v2 do
+    get "companies", to: "companies#index"
 
-      namespace :ov do
-        resources :submissions
-      end
+    namespace :ov do
+      resources :submissions
     end
   end
+  #end
 end
