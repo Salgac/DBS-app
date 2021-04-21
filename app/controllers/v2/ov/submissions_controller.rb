@@ -46,6 +46,80 @@ class V2::Ov::SubmissionsController < ApplicationController
 
   #POST v2/ov/submissions
   def create
+    submission = params[:submission].clone
+    submission.permit($SUBMISSION_VALUES)
+
+    missing_params = []
+    $SUBMISSION_VALUES.each do |param|
+      submission[param].nil? || submission[param].to_s.strip.empty? ? missing_params << param : nil
+    end
+    missing_params.empty? ? nil : (return render_submission_error(missing_params))
+
+    #validate submission values
+    (submission[:cin].is_a? Integer) ? nil : missing_params << "cin"
+
+    begin
+      Date.iso8601(submission[:registration_date])
+    rescue ArgumentError => e
+      missing_params << "registration_date"
+    end
+    if (Date.today().to_s.to_i - submission[:registration_date].to_s.to_i) == 0
+      nil
+    else
+      missing_params << "registration_date"
+    end
+    missing_params.empty? ? nil : (return render_submission_error(missing_params))
+
+    #prepare missing values
+    submission[:created_at] = submission[:updated_at] = Date.today().iso8601
+    submission[:address_line] = submission[:street] + ", " + submission[:postal_code] + " " + submission[:city]
+    time = Time.now().iso8601
+
+    #insert into ov.bulletin_issues
+    bulletin = BulletinIssue.new(
+      year: 2021,
+      number: BulletinIssue.last(1).pluck(:number)[0] + 1,
+      published_at: time,
+      created_at: time,
+      updated_at: time,
+    )
+    bulletin.save
+
+    #insert into ov.raw_issues
+    raw = RawIssue.new(
+      bulletin_issue_id: bulletin.id,
+      file_name: " - ",
+      content: " - ",
+      created_at: time,
+      updated_at: time,
+    )
+    raw.save
+
+    #insert into ov.or_podanie_issues
+    issue = OrPodanieIssue.new(
+      bulletin_issue_id: bulletin.id,
+      raw_issue_id: raw.id,
+      br_mark: " - ",
+      br_court_name: submission[:br_court_name].to_s,
+      br_court_code: " - ",
+      kind_code: " - ",
+      kind_name: submission[:kind_name].to_s,
+      cin: submission[:cin],
+      registration_date: submission[:registration_date].to_s,
+      corporate_body_name: submission[:corporate_body_name].to_s,
+      br_section: submission[:br_section].to_s,
+      br_insertion: submission[:br_insertion].to_s,
+      text: submission[:text].to_s,
+      street: submission[:street].to_s,
+      postal_code: submission[:postal_code].to_s,
+      city: submission[:city].to_s,
+      updated_at: submission[:updated_at].to_s,
+      created_at: submission[:created_at].to_s,
+      address_line: submission[:address_line].to_s,
+    )
+    issue.save
+
+    render json: { response: issue.slice($QUERY_VALUES) }, status: 201
   end
 
   #DELETE v2/ov/submissions/:id
@@ -71,5 +145,16 @@ class V2::Ov::SubmissionsController < ApplicationController
 
   def render_error(message, status_code)
     render json: { error: { message: message } }, status: status_code
+  end
+
+  def render_submission_error(arr)
+    render_arr = []
+    arr.each do |param|
+      reasons = ["required"]
+      param == "cin" ? reasons << "not_number" : nil
+      param == "registration_date" ? reasons << "invalid_range" : nil
+      render_arr << { field: param, reasons: reasons }
+    end
+    render json: { errors: render_arr }, status: 422
   end
 end
