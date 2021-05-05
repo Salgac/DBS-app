@@ -26,3 +26,7 @@ Commit ID pre odovzdanie 3: 0464061
 	`PG::DiskFull: ERROR: could not extend file "base/16405/16458.5": No space left on device`
 
 ---
+
+Commit ID pre odovzdanie 3: b2c85e9
+
+- Poznamka: GET `v2/companies` nefunguje koretkne, jednotlive county vypisuju pocet DISTINCT zaznamov pre `cin`.
